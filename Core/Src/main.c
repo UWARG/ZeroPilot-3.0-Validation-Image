@@ -33,7 +33,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define I2C1 PB13
+#define I2C2 PF0
+#define I2C3 PC1
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -238,8 +240,76 @@ UART_Test(void)
 void I2C_Test(void)
 {
 
+	uint8_t I2C_Buff[16] = {0};
+
+	// I2C1
+	HAL_I2C_Slave_Receive(I2C1, I2C_Buff, 16, HAL_MAX_DELAY);
+	HAL_I2C_Slave_Transmit(I2C1, I2C_Buff, 16, 100);
+
+	memset(I2C_Buff, 0, 16*sizeof(I2C_Buff[0]));
+
+	// I2C2
+	HAL_I2C_Slave_Receive(I2C2, I2C_Buff, 16, HAL_MAX_DELAY);
+	HAL_I2C_Slave_Transmit(I2C2, I2C_Buff, 16, 100);
+
+	memset(I2C_Buff, 0, 16*sizeof(I2C_Buff[0]));
+
+	// I2C3
+	HAL_I2C_Slave_Receive(I2C3, I2C_Buff, 16, HAL_MAX_DELAY);
+	HAL_I2C_Slave_Transmit(I2C3, I2C_Buff, 16, 100);
+
+	memset(I2C_Buff, 0, 16*sizeof(I2C_Buff[0]));
 }
 
+void MicroSD_Test(void)
+{
+
+}
+
+void PWM_GEN(void)
+{
+	/*
+	 * General Outline:
+	 * Set the timers in the .ioc file to your liking
+	 * Initialize the PWM timers
+	 * Set a delay for x amount of time
+	 * Stop the PWM timers
+	 */
+}
+
+void PWM_DMA_GEN(void)
+{
+
+}
+/*
+ * Check GPIO Interlock Channels, should read HIGH.
+ */
+void Interlock_Check(void)
+{
+
+	char uartBuf[100];
+
+	if(GPIO_IL_A)
+	{
+		sprintf(uartBuf, "[OK]	GPIO_IL_A\n");
+		HAL_UART_Transmit(&huart1, (uint8_t *)uartBuf, strlen(uartBuf), 100);
+	}
+	if(GPIO_IL_B)
+	{
+		sprintf(uartBuf, "[OK]	GPIO_IL_B\n");
+		HAL_UART_Transmit(&huart1, (uint8_t *)uartBuf, strlen(uartBuf), 100);
+	}
+	if(GPIO_IL_C)
+	{
+		sprintf(uartBuf, "[OK]	GPIO_IL_C\n");
+		HAL_UART_Transmit(&huart1, (uint8_t *)uartBuf, strlen(uartBuf), 100);
+	}
+	if(GPIO_IL_D)
+	{
+		sprintf(uartBuf, "[OK]	GPIO_IL_D\n" );
+		HAL_UART_Transmit(&huart1, (uint8_t *)uartBuf, strlen(uartBuf), 100);
+	}
+}
 
 
 /* USER CODE END 4 */
