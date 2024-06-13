@@ -18,16 +18,19 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "dma.h"
 #include "app_fatfs.h"
+#include "i2c.h"
 #include "sdmmc.h"
+#include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
-#include "string.h"
-#include "stdio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "string.h"
+#include "stdio.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,7 +52,8 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+uint16_t pwmData[24];
+int datasentflag = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,6 +69,7 @@ void SPI_Test(void);
 
 void PWM_Gen(void);
 void PWM_DMA_Gen(void);
+void Transmit_Sequence(uint32_t);
 
 void ADC_Test(void);
 
@@ -108,13 +113,20 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART1_UART_Init();
+  MX_DMA_Init();
   MX_USART2_UART_Init();
   MX_USART3_UART_Init();
   MX_SDMMC1_SD_Init();
   if (MX_FATFS_Init() != APP_OK) {
     Error_Handler();
   }
+  MX_I2C1_Init();
+  MX_I2C2_Init();
+  MX_I2C3_Init();
+  MX_SPI1_Init();
+  MX_SPI2_Init();
+  MX_TIM1_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -141,7 +153,7 @@ void SystemClock_Config(void)
 
   /** Configure the main internal regulator output voltage
   */
-  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE2) != HAL_OK)
+  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -156,7 +168,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
   RCC_OscInitStruct.PLL.PLLM = 1;
-  RCC_OscInitStruct.PLL.PLLN = 16;
+  RCC_OscInitStruct.PLL.PLLN = 40;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
   RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
@@ -169,12 +181,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -260,20 +272,20 @@ void I2C_Test(void)
 	uint8_t I2C_Buff[16] = {0};
 
 	// I2C1
-	//HAL_I2C_Slave_Receive(I2C1, I2C_Buff, 16, HAL_MAX_DELAY);
-	HAL_I2C_Slave_Transmit(I2C1, I2C_Buff, 16, 100);
+	HAL_I2C_Slave_Receive(&hi2c1, I2C_Buff, 16, HAL_MAX_DELAY);
+	HAL_I2C_Slave_Transmit(&hi2c1, I2C_Buff, 16, 100);
 
 	memset(I2C_Buff, 0, 16*sizeof(I2C_Buff[0]));
 
 	// I2C2
-	//HAL_I2C_Slave_Receive(I2C2, I2C_Buff, 16, HAL_MAX_DELAY);
-	HAL_I2C_Slave_Transmit(I2C2, I2C_Buff, 16, 100);
+	HAL_I2C_Slave_Receive(&hi2c2, I2C_Buff, 16, HAL_MAX_DELAY);
+	HAL_I2C_Slave_Transmit(&hi2c2, I2C_Buff, 16, 100);
 
 	memset(I2C_Buff, 0, 16*sizeof(I2C_Buff[0]));
 
 	// I2C3
-	//HAL_I2C_Slave_Receive(I2C3, I2C_Buff, 16, HAL_MAX_DELAY);
-	HAL_I2C_Slave_Transmit(I2C3, I2C_Buff, 16, 100);
+	HAL_I2C_Slave_Receive(&hi2c3, I2C_Buff, 16, HAL_MAX_DELAY);
+	HAL_I2C_Slave_Transmit(&hi2c3, I2C_Buff, 16, 100);
 
 	memset(I2C_Buff, 0, 16*sizeof(I2C_Buff[0]));
 }
@@ -282,20 +294,21 @@ void SPI_Test(void)
 {
 	uint8_t SPI_Transmit_Data [0x10]={0};
 	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_12,GPIO_PIN_RESET);
-	//HAL_SPI_Receive(&hspi1, SPI_Transmit_Data, sizeof(SPI_Transmit_Data),HAL_MAX_DELAY);
-	//HAL_SPI_Transmit(&hspi1, SPI_Transmit_Data, sizeof(SPI_Transmit_Data),HAL_MAX_DELAY);
-	HAL_SPI_WritePin(GPIOE, GPIO_PIN_12,GPIO_PIN_SET);
+	HAL_SPI_Receive(&hspi1, SPI_Transmit_Data, sizeof(SPI_Transmit_Data),HAL_MAX_DELAY);
+	HAL_SPI_Transmit(&hspi1, SPI_Transmit_Data, sizeof(SPI_Transmit_Data),100);
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_12,GPIO_PIN_SET);
 
 	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_12,GPIO_PIN_RESET);
-	//HAL_SPI_Receive(&hspi1, SPI_Transmit_Data, sizeof(SPI_Transmit_Data),HAL_MAX_DELAY);
-	//HAL_SPI_Transmit(&hspi1, SPI_Transmit_Data, sizeof(SPI_Transmit_Data),HAL_MAX_DELAY);
-	HAL_SPI_WritePin(GPIOE, GPIO_PIN_12,GPIO_PIN_SET);
+	HAL_SPI_Receive(&hspi1, SPI_Transmit_Data, sizeof(SPI_Transmit_Data),HAL_MAX_DELAY);
+	HAL_SPI_Transmit(&hspi1, SPI_Transmit_Data, sizeof(SPI_Transmit_Data),100);
+	HAL_GPIO_WritePin(GPIOE, GPIO_PIN_12,GPIO_PIN_SET);
 }
 
 void MicroSD_Test(void)
 {
 	FRESULT res; /* FatFs function common result code */
-	uint32_t byteswritten, bytesread; /* File write/read counts */
+	uint32_t byteswritten; // File write
+	// uint32_t bytesread; // Read count
 	uint8_t wtext[] = "STM32 FATFS works great!"; /* File write buffer */
 	uint8_t rtext[_MAX_SS];/* File read buffer */
 
@@ -347,8 +360,37 @@ void PWM_GEN(void)
 
 void PWM_DMA_GEN(void)
 {
+	uint32_t sequence = 0x00000000; // binary sequence
+
+	Transmit_Sequence(sequence);
 
 }
+/*
+ * PWM_DMA_GEN Helper function that takes in a binary sequence and sets the pwmdata
+ */
+void Transmit_Sequence (uint32_t sequence)
+{
+	// Transfer bit sequence to pwmData array
+	for (int i=23; i>=0; i--)
+	{
+		if (sequence&(1<<i))
+		{
+			pwmData[i] = 50;
+		}
+		else pwmData[i] = 25;
+	}
+
+	HAL_TIM_PWM_Start_DMA(&htim1, TIM_CHANNEL_1, (uint32_t *)pwmData, 24);
+	while(!datasentflag){};
+	datasentflag = 0;
+}
+
+void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
+{
+	HAL_TIM_PWM_Stop_DMA(htim, TIM_CHANNEL_1);
+	datasentflag = 1;
+}
+
 /*
  * Check GPIO Interlock Channels, should read HIGH.
  */
@@ -357,22 +399,22 @@ void Interlock_Check(void)
 
 	char uartBuf[100];
 
-	if(GPIO_IL_A_Pin)
+	if(HAL_GPIO_ReadPin(GPIO_IL_A_GPIO_Port, GPIO_IL_A_Pin))
 	{
 		sprintf(uartBuf, "[OK]	GPIO_IL_A\n");
 		HAL_UART_Transmit(&huart1, (uint8_t *)uartBuf, strlen(uartBuf), 100);
 	}
-	if(GPIO_IL_B_Pin)
+	if(HAL_GPIO_ReadPin(GPIO_IL_B_GPIO_Port, GPIO_IL_B_Pin))
 	{
 		sprintf(uartBuf, "[OK]	GPIO_IL_B\n");
 		HAL_UART_Transmit(&huart1, (uint8_t *)uartBuf, strlen(uartBuf), 100);
 	}
-	if(GPIO_IL_C_Pin)
+	if(HAL_GPIO_ReadPin(GPIO_IL_C_GPIO_Port, GPIO_IL_C_Pin))
 	{
 		sprintf(uartBuf, "[OK]	GPIO_IL_C\n");
 		HAL_UART_Transmit(&huart1, (uint8_t *)uartBuf, strlen(uartBuf), 100);
 	}
-	if(GPIO_IL_D_Pin)
+	if(HAL_GPIO_ReadPin(GPIO_IL_D_GPIO_Port, GPIO_IL_D_Pin))
 	{
 		sprintf(uartBuf, "[OK]	GPIO_IL_D\n" );
 		HAL_UART_Transmit(&huart1, (uint8_t *)uartBuf, strlen(uartBuf), 100);
