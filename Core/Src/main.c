@@ -21,10 +21,10 @@
 #include "dma.h"
 #include "app_fatfs.h"
 #include "i2c.h"
+#include "usart.h"
 #include "sdmmc.h"
 #include "spi.h"
 #include "tim.h"
-#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -68,8 +68,8 @@ void I2C_Test(void);
 void SPI_Test(void);
 
 void PWM_Gen(void);
-void PWM_DMA_Gen(void);
-void Transmit_Sequence(uint32_t);
+void PWM_DMA_Gen(TIM_HandleTypeDef *);
+void Transmit_Sequence(TIM_HandleTypeDef *, uint32_t);
 
 void ADC_Test(void);
 
@@ -127,6 +127,8 @@ int main(void)
   MX_SPI2_Init();
   MX_TIM1_Init();
   MX_USART1_UART_Init();
+  MX_LPUART1_UART_Init();
+  MX_UART4_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -236,8 +238,8 @@ void UART_Test(void)
 	uint8_t UART_Buff[16] = {0};
 
 	// LPUART1
-	//HAL_UART_Receive(&hlpuart1, UART_Buff, 16, HAL_MAX_DELAY);
-	//HAL_UART_Transmit(&hlpuart1, UART_Buff, 16, 100);
+	HAL_UART_Receive(&hlpuart1, UART_Buff, 16, HAL_MAX_DELAY);
+	HAL_UART_Transmit(&hlpuart1, UART_Buff, 16, 100);
 
 	memset(UART_Buff, 0, sizeof(UART_Buff));
 
@@ -260,8 +262,8 @@ void UART_Test(void)
 	memset(UART_Buff, 0, sizeof(UART_Buff));
 
 	// UART4
-	//HAL_UART_Receive(&huart4, UART_Buff, 16, HAL_MAX_DELAY);
-	//HAL_UART_Transmit(&huart4, UART_Buff, 16, 100);
+	HAL_UART_Receive(&huart4, UART_Buff, 16, HAL_MAX_DELAY);
+	HAL_UART_Transmit(&huart4, UART_Buff, 16, 100);
 
 	memset(UART_Buff, 0, sizeof(UART_Buff));
 }
@@ -358,17 +360,17 @@ void PWM_GEN(void)
 	 */
 }
 
-void PWM_DMA_GEN(void)
+void PWM_DMA_GEN(TIM_HandleTypeDef *htim)
 {
-	uint32_t sequence = 0x00000000; // binary sequence
+	uint32_t sequence = 0xAAAAAAAA; // binary sequence
 
-	Transmit_Sequence(sequence);
+	Transmit_Sequence(htim, sequence);
 
 }
 /*
  * PWM_DMA_GEN Helper function that takes in a binary sequence and sets the pwmdata
  */
-void Transmit_Sequence (uint32_t sequence)
+void Transmit_Sequence (TIM_HandleTypeDef *htim, uint32_t sequence)
 {
 	// Transfer bit sequence to pwmData array
 	for (int i=23; i>=0; i--)
@@ -380,7 +382,7 @@ void Transmit_Sequence (uint32_t sequence)
 		else pwmData[i] = 25;
 	}
 
-	HAL_TIM_PWM_Start_DMA(&htim1, TIM_CHANNEL_1, (uint32_t *)pwmData, 24);
+	HAL_TIM_PWM_Start_DMA(htim, TIM_CHANNEL_1, (uint32_t *)pwmData, 24);
 	while(!datasentflag){};
 	datasentflag = 0;
 }
